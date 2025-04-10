@@ -10,14 +10,6 @@ import (
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
-type User struct {
-	State       State
-	City        string
-	Region      string
-	PricingFrom int
-	PricingTo   int
-}
-
 type State uint
 
 const (
