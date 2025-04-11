@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -20,9 +21,18 @@ const (
 	StateConfirm
 )
 
-var ctx = context.Background()
+type UserState struct {
+	State     State
+	City      string
+	Region    string
+	PriceFrom int
+	PriceTo   int
+}
 
-var users = make(map[int64]*User)
+var ctx = context.Background()
+var user UserState
+
+var users = make(map[int64]UserState)
 
 var lock = sync.RWMutex{}
 
@@ -33,59 +43,154 @@ func Start(ctx *th.Context, update telego.Update) error {
 	return nil
 }
 
-// Fuck it, use buttons
-
-// func Monitor(ctx *th.Context, update telego.Update) error {
-// 	chatID := update.Message.Chat.ID
-
-// 	lock.RLock()
-// 	user, exists := users[chatID]
-// 	lock.RUnlock()
-
-// 	if !exists {
-// 		user = &User{}
-// 		lock.Lock()
-// 		users[chatID] = user
-// 		lock.Unlock()
-// 	}
-
-// 	_, _ = ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Введите город для мониторинга\n\n Доступны:\n Астана"))
-
-// 	user.State = StateAskCity
-
-// 	switch user.State {
-// 	case StateAskCity:
-// 		lock.RLock()
-// 		user, exists := users[chatID]
-// 		lock.RUnlock()
-
-// 		if !exists {
-// 			user = &User{}
-// 		}tyHandler(ctx, update, *user)
-// 	default:
-// 		Monitor(ctx, update)
-// 	}
-
-// 	return nil
-// }
-
-// func CityHandler(ctx *th.Context, update telego.Update, user User) {
-// 	chatID := update.Message.Chat.ID
-
-// 	city := update.Message.Text
-
-// 	if strings.ToLower(city) != "астана" {
-// 		ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Неверный город! Выберите из списка доступных."))
-// 		return
-// 	}
-
-// 	user.City = city
-
-// 	user.State = StateAskRegion // next state (example)
-
-// 	ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Введите район города (например: Есильский район)"))
-// }
-
 func Monitor(ctx *th.Context, update telego.Update) error {
+	chatID := update.Message.Chat.ID
+
+	lock.Lock()
+	users[chatID] = UserState{State: StateAskCity}
+	lock.Unlock()
+
+	cityData := `{"city": "astana"}`
+	button := tu.InlineKeyboardButton("Астана").WithCallbackData(cityData)
+	rows := tu.InlineKeyboardRow(button)
+	kb := tu.InlineKeyboard(rows)
+
+	ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Выберите город:").WithReplyMarkup(kb))
+
+	return nil
+}
+
+func sendDistricts(ctx *th.Context, chatID int64, city string) error {
+	rows := []telego.InlineKeyboardButton{}
+
+	for alias, name := range cityData[city] {
+		data := map[string]string{
+			"district": alias,
+		}
+		dataJSON, _ := json.Marshal(data)
+
+		button := tu.InlineKeyboardButton(name).WithCallbackData(string(dataJSON))
+		rows = append(rows, button)
+	}
+
+	var kb [][]telego.InlineKeyboardButton
+
+	for i := 0; i < len(rows); i += 2 {
+		end := i + 2
+		if end > len(rows) {
+			end = len(rows)
+		}
+
+		kb = append(kb, rows[i:end])
+	}
+	_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Выберите район:").WithReplyMarkup(tu.InlineKeyboard(kb...)))
+	return err
+}
+
+func HandleCallback(ctx *th.Context, update telego.Update) error {
+	callback := update.CallbackQuery
+	data := callback.Data
+
+	var payload map[string]string
+	if err := json.Unmarshal([]byte(data), &payload); err != nil {
+		return nil
+	}
+
+	chatID := callback.Message.GetChat().ID
+	lock.Lock()
+	userState := users[chatID]
+	lock.Unlock()
+
+	if city, ok := payload["city"]; ok {
+		lock.Lock()
+		userState.City = city
+		userState.State = StateAskRegion
+		users[chatID] = userState
+		lock.Unlock()
+
+		return sendDistricts(ctx, chatID, city)
+	}
+
+	if district, ok := payload["district"]; ok {
+		lock.Lock()
+		userState.Region = district
+		userState.State = StateAskPricing
+		users[chatID] = userState
+		lock.Unlock()
+
+		_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Введите диапазон цен в формате 100000-180000"))
+		return err
+	}
+
+	if confirm, ok := payload["confirm"]; ok {
+		if confirm == "yes" {
+			// Действие при подтверждении
+			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Отлично! Ваши данные сохранены ✅"))
+			if err != nil {
+				return err
+			}
+
+			// Очистка состояния
+			lock.Lock()
+			delete(users, chatID)
+			lock.Unlock()
+
+			return nil
+		} else {
+			// При отмене возвращаемся к выбору города
+			lock.Lock()
+			userState.State = StateAskCity
+			users[chatID] = userState
+			lock.Unlock()
+
+			return Monitor(ctx, update)
+		}
+	}
+
+	return nil
+}
+
+func HandleMessage(ctx *th.Context, update telego.Update) error {
+	chatID := update.Message.Chat.ID
+	text := update.Message.Text
+
+	lock.Lock()
+	userState, ok := users[chatID]
+	lock.Unlock()
+
+	if !ok {
+		return nil
+	}
+
+	switch userState.State {
+	case StateAskPricing:
+		lock.Lock()
+		priceFrom, priceTo := destructStringToNumbers(text, "-")
+		if priceFrom == 0 && priceTo == 0 {
+			// Если парсинг не удался, отправляем пользователю подсказку
+			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Пожалуйста, введите диапазон цен корректно, например: 100000-180000"))
+			return err
+		}
+
+		userState.PriceFrom = priceFrom
+		userState.PriceTo = priceTo
+		userState.State = StateConfirm
+		users[chatID] = userState
+		lock.Unlock()
+		msg := fmt.Sprintf("Вы выбрали:\nГород: Астана\nРайон: %s\nЦена: от %d, до %d\nПодтвердить?",
+			cityData[userState.City][userState.Region],
+			userState.PriceTo,
+			userState.PriceFrom,
+		)
+
+		confirmButton := tu.InlineKeyboardButton("✅ Подтвердить").WithCallbackData(`"confirm": "yes"`)
+		declineButton := tu.InlineKeyboardButton("✖️ Отмена").WithCallbackData(`"confirm": "no"`)
+		rows := tu.InlineKeyboardRow(confirmButton, declineButton)
+		keyboard := tu.InlineKeyboard(rows)
+
+		_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), msg).WithReplyMarkup(keyboard))
+		return err
+	}
+
 	return nil
 }

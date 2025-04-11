@@ -4,7 +4,6 @@ import (
 	"context"
 	"database"
 	"os"
-	"parser"
 
 	"github.com/joho/godotenv"
 	"github.com/mymmrac/telego"
@@ -29,10 +28,10 @@ func main() {
 
 	defer func() { _ = bh.Stop() }()
 
-	parser.TestParser()
-
 	bh.Handle(Start, th.CommandEqual("start"))
 	bh.Handle(Monitor, th.CommandEqual("monitor"))
+	bh.Handle(HandleCallback)
+	bh.Handle(HandleMessage)
 
 	_ = bh.Start()
 }

@@ -9,27 +9,13 @@ import (
 
 // Temporarily using sqlite3
 func InitDB() (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open("temp.db"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("./database/temp.sqlite3"), &gorm.Config{})
 	if err != nil {
 		fmt.Printf("Unable to establish connection with the database: %s", err)
 		return nil, err
 	}
 
+	db.AutoMigrate(&User{}, &Flat{})
+
 	return db, nil
-}
-
-func MigrateAll() error {
-	db, err := InitDB()
-	if err != nil {
-		fmt.Printf("Unable to establish connection with the database: %s", err)
-		return err
-	}
-
-	err = db.AutoMigrate(&User{}, &Flat{})
-	if err != nil {
-		fmt.Printf("Unable to migrate models: %s", err)
-		return err
-	}
-
-	return nil
 }
