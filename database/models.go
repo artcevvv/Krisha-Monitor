@@ -4,7 +4,7 @@ import "gorm.io/gorm"
 
 type User struct {
 	gorm.Model
-	ChatID      int64
+	ChatID      int64 `gorm:"primaryKey"`
 	City        string
 	Region      string
 	PricingFrom int
@@ -13,10 +13,16 @@ type User struct {
 
 type Flat struct {
 	gorm.Model
-	user      User
-	url       string
-	city      string
-	region    string
-	priceFrom int
-	priceTo   int
+	UserID      uint `gorm:"index"`
+	Title       string
+	Price       string
+	Location    string
+	Description string
+	Link        string
+	ImageURL    string
+	Date        string
+	Area        string
+	Floor       string
+	Rooms       string
+	Page        int
 }

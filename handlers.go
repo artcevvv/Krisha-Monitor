@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"database"
 	"encoding/json"
 	"fmt"
+	"parser"
 	"sync"
 
 	"github.com/mymmrac/telego"
@@ -87,8 +89,7 @@ func sendDistricts(ctx *th.Context, chatID int64, city string) error {
 	return err
 }
 
-func HandleCallback(ctx *th.Context, update telego.Update) error {
-	callback := update.CallbackQuery
+func HandleCallback(ctx *th.Context, callback telego.CallbackQuery) error {
 	data := callback.Data
 
 	var payload map[string]string
@@ -124,26 +125,40 @@ func HandleCallback(ctx *th.Context, update telego.Update) error {
 
 	if confirm, ok := payload["confirm"]; ok {
 		if confirm == "yes" {
-			// Действие при подтверждении
-			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Отлично! Ваши данные сохранены ✅"))
+			lock.Lock()
+
+			data := database.User{
+				ChatID:      chatID,
+				City:        userState.City,
+				Region:      userState.Region,
+				PricingFrom: userState.PriceFrom,
+				PricingTo:   userState.PriceTo,
+			}
+
+			database.SaveData(db, data)
+			url := parser.FormURL(db, chatID)
+
+			delete(users, chatID)
+			lock.Unlock()
+
+			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Отлично! Ваши данные сохранены ✅ Custom URL\n\n"+url))
+
 			if err != nil {
 				return err
 			}
 
-			// Очистка состояния
-			lock.Lock()
-			delete(users, chatID)
-			lock.Unlock()
-
 			return nil
 		} else {
-			// При отмене возвращаемся к выбору города
 			lock.Lock()
-			userState.State = StateAskCity
+			userState.State = StateDefault
 			users[chatID] = userState
 			lock.Unlock()
 
-			return Monitor(ctx, update)
+			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Отлично! ИДИ В ЖОПУ"))
+
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -165,9 +180,9 @@ func HandleMessage(ctx *th.Context, update telego.Update) error {
 	switch userState.State {
 	case StateAskPricing:
 		lock.Lock()
+
 		priceFrom, priceTo := destructStringToNumbers(text, "-")
 		if priceFrom == 0 && priceTo == 0 {
-			// Если парсинг не удался, отправляем пользователю подсказку
 			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Пожалуйста, введите диапазон цен корректно, например: 100000-180000"))
 			return err
 		}
@@ -175,16 +190,18 @@ func HandleMessage(ctx *th.Context, update telego.Update) error {
 		userState.PriceFrom = priceFrom
 		userState.PriceTo = priceTo
 		userState.State = StateConfirm
+
 		users[chatID] = userState
-		lock.Unlock()
+
 		msg := fmt.Sprintf("Вы выбрали:\nГород: Астана\nРайон: %s\nЦена: от %d, до %d\nПодтвердить?",
 			cityData[userState.City][userState.Region],
-			userState.PriceTo,
 			userState.PriceFrom,
+			userState.PriceTo,
 		)
+		lock.Unlock()
 
-		confirmButton := tu.InlineKeyboardButton("✅ Подтвердить").WithCallbackData(`"confirm": "yes"`)
-		declineButton := tu.InlineKeyboardButton("✖️ Отмена").WithCallbackData(`"confirm": "no"`)
+		confirmButton := tu.InlineKeyboardButton("✅ Подтвердить").WithCallbackData(`{"confirm": "yes"}`)
+		declineButton := tu.InlineKeyboardButton("✖️ Отмена").WithCallbackData(`{"confirm": "no"}`)
 		rows := tu.InlineKeyboardRow(confirmButton, declineButton)
 		keyboard := tu.InlineKeyboard(rows)
 

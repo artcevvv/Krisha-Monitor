@@ -19,3 +19,48 @@ func InitDB() (*gorm.DB, error) {
 
 	return db, nil
 }
+
+func SaveData(db *gorm.DB, data User) error {
+	if err := db.Save(&data).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetUser(db *gorm.DB, chatID int64) (*User, error) {
+	var user User
+	if err := db.Where("chat_id = ?", chatID).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func SaveFlats(db *gorm.DB, flats []Flat) error {
+	if err := db.Save(&flats).Error; err != nil {
+		return fmt.Errorf("error saving flats: %v", err)
+	}
+	return nil
+}
+
+func GetFlatsByUser(db *gorm.DB, userID uint) ([]Flat, error) {
+	var flats []Flat
+	if err := db.Where("user_id = ?", userID).Find(&flats).Error; err != nil {
+		return nil, err
+	}
+	return flats, nil
+}
+
+func GetFlatsByPage(db *gorm.DB, page int) ([]Flat, error) {
+	var flats []Flat
+	if err := db.Where("page = ?", page).Find(&flats).Error; err != nil {
+		return nil, err
+	}
+	return flats, nil
+}
+
+func GetData(db *gorm.DB, chatID string) (interface{}, bool) {
+	data, status := db.Get(chatID)
+
+	return data, status
+}
