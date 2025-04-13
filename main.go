@@ -4,7 +4,6 @@ import (
 	"context"
 	"database"
 	"os"
-	"parser"
 
 	"github.com/joho/godotenv"
 	"github.com/mymmrac/telego"
@@ -20,7 +19,6 @@ func main() {
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 
 	db, _ = database.InitDB()
-	parser.ParseKrisha("https://krisha.kz/arenda/kvartiry/", db)
 
 	bot, err := telego.NewBot(token, telego.WithDefaultDebugLogger())
 	if err != nil {
@@ -35,6 +33,7 @@ func main() {
 
 	bh.Handle(Start, th.CommandEqual("start"))
 	bh.Handle(Monitor, th.CommandEqual("monitor"))
+	bh.Handle(Cancel, th.CommandEqual("cancel"))
 	bh.HandleCallbackQuery(HandleCallback, th.AnyCallbackQueryWithMessage())
 	bh.Handle(HandleMessage)
 

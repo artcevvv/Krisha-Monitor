@@ -14,6 +14,7 @@ type User struct {
 type Flat struct {
 	gorm.Model
 	UserID      uint `gorm:"index"`
+	User        User
 	Title       string
 	Price       string
 	Location    string

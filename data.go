@@ -1,5 +1,11 @@
 package main
 
+import (
+	"context"
+	"sync"
+	"time"
+)
+
 var cityData = map[string]map[string]string{
 	"astana": {
 		"astana-almatinskij":   "Алматы р-н",
@@ -10,3 +16,15 @@ var cityData = map[string]map[string]string{
 		"astana-saryarkinskij": "Сарыарка р-н",
 	},
 }
+
+type UserMonitor struct {
+	ChatID      int64
+	URL         string
+	KnownFlats  map[string]bool // для отслеживания уже отправленных
+	CommandChan chan string     // канал для команд (start, stop и др.)
+	Ticker      *time.Ticker
+	CancelFunc  context.CancelFunc
+}
+
+var monitors = make(map[int64]*UserMonitor)
+var monitorLock sync.Mutex

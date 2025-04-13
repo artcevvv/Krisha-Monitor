@@ -43,7 +43,7 @@ func SaveFlats(db *gorm.DB, flats []Flat) error {
 	return nil
 }
 
-func GetFlatsByUser(db *gorm.DB, userID uint) ([]Flat, error) {
+func GetFlatsByUser(db *gorm.DB, userID int64) ([]Flat, error) {
 	var flats []Flat
 	if err := db.Where("user_id = ?", userID).Find(&flats).Error; err != nil {
 		return nil, err
@@ -57,6 +57,17 @@ func GetFlatsByPage(db *gorm.DB, page int) ([]Flat, error) {
 		return nil, err
 	}
 	return flats, nil
+}
+
+func DeleteOldFlats(db *gorm.DB, flatsToDelete []uint) error {
+	if len(flatsToDelete) == 0 {
+		return nil
+	}
+	if err := db.Delete(&Flat{}, flatsToDelete).Error; err != nil {
+		return fmt.Errorf("[deleteOldFlats] Error deleting old flats: %v", err)
+	}
+	fmt.Printf("[deleteOldFlats] Deleted %d outdated flats\n", len(flatsToDelete))
+	return nil
 }
 
 func GetData(db *gorm.DB, chatID string) (interface{}, bool) {

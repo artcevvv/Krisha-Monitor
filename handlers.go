@@ -41,7 +41,7 @@ var lock = sync.RWMutex{}
 func Start(ctx *th.Context, update telego.Update) error {
 	chatID := update.Message.Chat.ID
 
-	_, _ = ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), fmt.Sprintf("Привет! \nЯ - бот для мониторинга сайта 'Krisha.kz'. \n\nДля начала мониторинга введи команду /monitoring!")))
+	_, _ = ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), fmt.Sprintf("Привет! \nЯ - бот для мониторинга сайта 'Krisha.kz'. \n\nДля начала мониторинга введи команду /monitor!")))
 	return nil
 }
 
@@ -58,6 +58,21 @@ func Monitor(ctx *th.Context, update telego.Update) error {
 	kb := tu.InlineKeyboard(rows)
 
 	ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Выберите город:").WithReplyMarkup(kb))
+
+	return nil
+}
+
+func Cancel(ctx *th.Context, update telego.Update) error {
+	chatID := update.Message.Chat.ID
+
+	err := StopUserMonitor(chatID)
+
+	if err != nil {
+		ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), err.Error()))
+		return err
+	}
+
+	ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Вы остановили получение информации! \n\nДля повторного процесса введите /monitor"))
 
 	return nil
 }
@@ -141,7 +156,9 @@ func HandleCallback(ctx *th.Context, callback telego.CallbackQuery) error {
 			delete(users, chatID)
 			lock.Unlock()
 
-			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Отлично! Ваши данные сохранены ✅ Custom URL\n\n"+url))
+			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "✅ Отлично! Ваши данные сохранены \n\nНачинаю мониторинг... (Сообщения с информацией о новых квартирах будут приходить раз в 1 час)\n\n Для отмены процесса введите /cancel"))
+
+			StartUserMonitor(ctx, chatID, url, db)
 
 			if err != nil {
 				return err
@@ -154,7 +171,7 @@ func HandleCallback(ctx *th.Context, callback telego.CallbackQuery) error {
 			users[chatID] = userState
 			lock.Unlock()
 
-			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Отлично! ИДИ В ЖОПУ"))
+			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Хорошо, давайте начнем заново! \n\nВведите /monitor для того что бы повторить процедуру ввода данных"))
 
 			if err != nil {
 				return err
@@ -181,9 +198,9 @@ func HandleMessage(ctx *th.Context, update telego.Update) error {
 	case StateAskPricing:
 		lock.Lock()
 
-		priceFrom, priceTo := destructStringToNumbers(text, "-")
-		if priceFrom == 0 && priceTo == 0 {
-			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Пожалуйста, введите диапазон цен корректно, например: 100000-180000"))
+		priceFrom, priceTo, err := DestructStringToNumbers(text, "-")
+		if err != nil {
+			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), err.Error()))
 			return err
 		}
 
@@ -205,7 +222,7 @@ func HandleMessage(ctx *th.Context, update telego.Update) error {
 		rows := tu.InlineKeyboardRow(confirmButton, declineButton)
 		keyboard := tu.InlineKeyboard(rows)
 
-		_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), msg).WithReplyMarkup(keyboard))
+		_, err = ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), msg).WithReplyMarkup(keyboard))
 		return err
 	}
 

@@ -11,45 +11,117 @@ import (
 	"gorm.io/gorm"
 )
 
-func ParseKrisha(urlStr string, db *gorm.DB) error {
+func ParseKrisha(urlStr string, db *gorm.DB, userID int64) error {
 	fmt.Println("[ParseKrisha] Starting parsing process with pagination")
 
+	allFlats, totalCount, err := parsePages(urlStr, userID)
+	if err != nil {
+		return err
+	}
+
+	existingFlats, err := getExistingFlats(db, userID)
+	if err != nil {
+		return err
+	}
+
+	flatsToCreate, flatsToDelete := processFlats(allFlats, existingFlats)
+
+	if err := database.DeleteOldFlats(db, flatsToDelete); err != nil {
+		return err
+	}
+
+	if err := saveNewFlats(db, flatsToCreate); err != nil {
+		return err
+	}
+
+	fmt.Printf("[ParseKrisha] Parsing completed, found %d listings across all pages\n", totalCount)
+	return nil
+}
+
+func parsePages(urlStr string, userID int64) ([]database.Flat, int, error) {
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
-		return fmt.Errorf("[ParseKrisha] Error parsing URL: %v", err)
+		return nil, 0, fmt.Errorf("[parsePages] Error parsing URL: %v", err)
 	}
 
 	var allFlats []database.Flat
 	totalCount := 0
 
-	// Parse the first 5 pages
 	for page := 1; page <= 5; page++ {
 		q := parsedURL.Query()
 		q.Set("page", fmt.Sprintf("%d", page))
 		parsedURL.RawQuery = q.Encode()
 		pageURL := parsedURL.String()
 
-		fmt.Printf("[ParseKrisha] Processing page %d: %s\n", page, pageURL)
+		fmt.Printf("[parsePages] Processing page %d: %s\n", page, pageURL)
 
 		pageFlats, pageCount, err := parsePage(pageURL, page)
 		if err != nil {
-			return fmt.Errorf("[ParseKrisha] Error parsing page %d: %v", page, err)
+			return nil, 0, fmt.Errorf("[parsePages] Error parsing page %d: %v", page, err)
+		}
+
+		for i := range pageFlats {
+			pageFlats[i].UserID = uint(userID)
 		}
 
 		allFlats = append(allFlats, pageFlats...)
 		totalCount += pageCount
 
 		if pageCount == 0 {
-			fmt.Printf("[ParseKrisha] No results on page %d, stopping pagination\n", page)
+			fmt.Printf("[parsePages] No results on page %d, stopping pagination\n", page)
 			break
 		}
 	}
 
-	if err := database.SaveFlats(db, allFlats); err != nil {
-		return fmt.Errorf("[ParseKrisha] Error saving flats to database: %v", err)
+	return allFlats, totalCount, nil
+}
+
+func getExistingFlats(db *gorm.DB, userID int64) ([]database.Flat, error) {
+	existingFlats, err := database.GetFlatsByUser(db, userID)
+	if err != nil {
+		return nil, err
+	}
+	return existingFlats, nil
+}
+
+func processFlats(allFlats []database.Flat, existingFlats []database.Flat) ([]database.Flat, []uint) {
+	existingMap := make(map[string]database.Flat)
+	for _, flat := range existingFlats {
+		existingMap[flat.Link] = flat
 	}
 
-	fmt.Printf("[ParseKrisha] Parsing completed, found %d listings across all pages\n", totalCount)
+	newFlatsMap := make(map[string]database.Flat)
+	for _, flat := range allFlats {
+		newFlatsMap[flat.Link] = flat
+	}
+
+	var flatsToCreate []database.Flat
+	for link, flat := range newFlatsMap {
+		if _, exists := existingMap[link]; !exists {
+			flatsToCreate = append(flatsToCreate, flat)
+		}
+	}
+
+	var flatsToDelete []uint
+	for link, flat := range existingMap {
+		if _, exists := newFlatsMap[link]; !exists {
+			flatsToDelete = append(flatsToDelete, flat.ID)
+		}
+	}
+
+	return flatsToCreate, flatsToDelete
+}
+
+// Сохраняет новые flats
+func saveNewFlats(db *gorm.DB, flatsToCreate []database.Flat) error {
+	if len(flatsToCreate) == 0 {
+		fmt.Println("[saveNewFlats] No new flats to save")
+		return nil
+	}
+	if err := database.SaveFlats(db, flatsToCreate); err != nil {
+		return fmt.Errorf("[saveNewFlats] Error saving new flats: %v", err)
+	}
+	fmt.Printf("[saveNewFlats] Saved %d new flats\n", len(flatsToCreate))
 	return nil
 }
 
