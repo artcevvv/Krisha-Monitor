@@ -23,6 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /app/database && chmod 777 /app/database
+RUN mkdir -p /app/database /app/logs && chmod 777 /app/database /app/logs
 
 CMD ["./krishaBot"]

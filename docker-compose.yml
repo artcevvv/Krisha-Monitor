@@ -6,3 +6,4 @@ services:
     env_file: ./.env
     volumes:
       - ./database:/app/database
+      - ./logs:/app/logs
