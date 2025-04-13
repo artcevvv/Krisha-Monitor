@@ -5,7 +5,6 @@ import (
 	"database"
 	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
 	"gorm.io/gorm"
@@ -14,7 +13,7 @@ import (
 var db *gorm.DB
 
 func main() {
-	godotenv.Load()
+	// godotenv.Load()
 	ctx := context.Background()
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 
