@@ -139,5 +139,5 @@ func StopUserMonitor(chatID int64) error {
 		delete(monitors, chatID)
 		return nil
 	}
-	return fmt.Errorf("Вы не находитесь в процессе мониторинга!")
+	return fmt.Errorf("вы не находитесь в процессе мониторинга")
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database"
 	"encoding/json"
 	"fmt"
@@ -31,9 +30,6 @@ type UserState struct {
 	PriceTo   int
 }
 
-var ctx = context.Background()
-var user UserState
-
 var users = make(map[int64]UserState)
 
 var lock = sync.RWMutex{}
@@ -41,7 +37,7 @@ var lock = sync.RWMutex{}
 func Start(ctx *th.Context, update telego.Update) error {
 	chatID := update.Message.Chat.ID
 
-	_, _ = ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), fmt.Sprintf("Привет! \nЯ - бот для мониторинга сайта 'Krisha.kz'. \n\nДля начала мониторинга введи команду /monitor!")))
+	_, _ = ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "Привет! \nЯ - бот для мониторинга сайта 'Krisha.kz'. \n\nДля начала мониторинга введи команду /monitor!"))
 	return nil
 }
 
