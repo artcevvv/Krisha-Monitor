@@ -5,7 +5,6 @@ import (
 	"database"
 	"fmt"
 	"parser"
-	"sort"
 	"strings"
 	"time"
 
@@ -39,7 +38,6 @@ func StartUserMonitor(ctx *th.Context, chatID int64, url string, db *gorm.DB) {
 func UserMonitorWorker(goCtx context.Context, ctx *th.Context, monitor *UserMonitor, db *gorm.DB) {
 	defer monitor.Ticker.Stop()
 
-	// Сразу при запуске
 	err := parser.ParseKrisha(monitor.URL, db, monitor.ChatID)
 	if err != nil {
 		fmt.Println("Ошибка парсинга:", err)
@@ -56,7 +54,6 @@ func UserMonitorWorker(goCtx context.Context, ctx *th.Context, monitor *UserMoni
 		}
 	}
 
-	// Основной цикл тикера
 	for {
 		select {
 		case <-goCtx.Done():
@@ -65,6 +62,7 @@ func UserMonitorWorker(goCtx context.Context, ctx *th.Context, monitor *UserMoni
 			if cmd == "stop" {
 				return
 			}
+
 		case <-monitor.Ticker.C:
 			err := parser.ParseKrisha(monitor.URL, db, monitor.ChatID)
 			if err != nil {
@@ -104,29 +102,12 @@ func saveKnownFlats(monitor *UserMonitor, flats []database.Flat) {
 }
 
 func sendFlatsSummary(ctx *th.Context, chatID int64, flats []database.Flat) {
-	const maxFlatsPerMessage = 20 // Максимальное количество квартир в одном сообщении
-
-	sort.Slice(flats, func(i, j int) bool {
-		priceI, errI := parsePrice(flats[i].Price)
-		priceJ, errJ := parsePrice(flats[j].Price)
-
-		if errI != nil && errJ != nil {
-			return false
-		}
-		if errI != nil {
-			return false
-		}
-		if errJ != nil {
-			return true
-		}
-
-		return priceI < priceJ
-	})
+	const maxFlatsPerMessage = 20
 
 	var messages []string
 
 	for _, flat := range flats {
-		message := fmt.Sprintf("🏠 %s\n💸 <b>%s</b>\n🔗 %s", flat.Title, flat.Price, flat.Link)
+		message := fmt.Sprintf("🏠 %s | %s \n💸 <b>%s</b>\n🔗 %s", flat.Title, flat.Location, flat.Price, flat.Link)
 		messages = append(messages, message)
 	}
 
@@ -158,5 +139,5 @@ func StopUserMonitor(chatID int64) error {
 		delete(monitors, chatID)
 		return nil
 	}
-	return fmt.Errorf("Вы не находитесь в процессе мониторинга!")
+	return fmt.Errorf("вы не находитесь в процессе мониторинга")
 }
