@@ -142,21 +142,35 @@ func HandleCallback(ctx *th.Context, callback telego.CallbackQuery) error {
 		if confirm == "yes" {
 			lock.Lock()
 
-			data := database.User{
-				ChatID:      chatID,
-				City:        userState.City,
-				Region:      userState.Region,
-				PricingFrom: userState.PriceFrom,
-				PricingTo:   userState.PriceTo,
+			_, err := database.GetUser(db, chatID)
+			if err == nil {
+				err = database.UpdateData(db, chatID, userState.Region, userState.PriceFrom, userState.PriceTo)
+				if err != nil {
+					lock.Unlock()
+					ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "❌ Произошла ошибка при обновлении данных. Попробуйте снова."))
+					return err
+				}
+			} else {
+				data := database.User{
+					ChatID:      chatID,
+					City:        userState.City,
+					Region:      userState.Region,
+					PricingFrom: userState.PriceFrom,
+					PricingTo:   userState.PriceTo,
+				}
+
+				if err := database.SaveData(db, data); err != nil {
+					lock.Unlock()
+					ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "❌ Произошла ошибка при сохранении данных. Попробуйте снова."))
+					return err
+				}
 			}
 
-			database.SaveData(db, data)
 			url := parser.FormURL(db, chatID)
-
 			delete(users, chatID)
 			lock.Unlock()
 
-			_, err := ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "✅ Отлично! Ваши данные сохранены \n\nНачинаю мониторинг... (Сообщения с информацией о новых квартирах будут приходить раз в 1 час)\n\n Для отмены процесса введите /cancel"))
+			_, err = ctx.Bot().SendMessage(ctx, tu.Message(tu.ID(chatID), "✅ Отлично! Ваши данные сохранены \n\nНачинаю мониторинг... (Сообщения с информацией о новых квартирах будут приходить раз в 1 час)\n\n Для отмены процесса введите /cancel"))
 
 			StartUserMonitor(ctx, chatID, url, db)
 

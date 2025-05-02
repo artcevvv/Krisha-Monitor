@@ -75,3 +75,20 @@ func GetData(db *gorm.DB, chatID string) (interface{}, bool) {
 
 	return data, status
 }
+
+func UpdateData(db *gorm.DB, userID int64, newRegion string, priceFrom, priceTo int) error {
+	user, err := GetUser(db, userID)
+	if err != nil {
+		return err
+	}
+
+	if err := db.Model(user).Updates(map[string]interface{}{
+		"region":       newRegion,
+		"pricing_from": priceFrom,
+		"pricing_to":   priceTo,
+	}).Error; err != nil {
+		return fmt.Errorf("error updating user data: %v", err)
+	}
+
+	return nil
+}

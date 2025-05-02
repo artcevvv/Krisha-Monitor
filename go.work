@@ -4,5 +4,4 @@ use (
 	.
 	./database
 	./parser
-	./logger
 )
