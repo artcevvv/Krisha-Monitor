@@ -20,10 +20,8 @@
 <a id="-krishamonitor---русский"></a>
 # Русский
 
-<p align="center">
-  <b>Больше никаких упущенных выгодных предложений по аренде.</b><br>
-  KrishaMonitor непрерывно в фоновом режиме парсит новые объявления по заданным фильтрам, вычисляет разницу (diff) и мгновенно отправляет уведомления в Telegram до того, как квартиру заберут другие.
-</p>
+<b>Больше никаких упущенных выгодных предложений по аренде.</b><br>
+KrishaMonitor непрерывно в фоновом режиме парсит новые объявления по заданным фильтрам, вычисляет разницу (diff) и мгновенно отправляет уведомления в Telegram до того, как квартиру заберут другие.
 
 [Ключевые возможности](#ключевые-возможности) •
 [Архитектура системы](#архитектура-системы) •
@@ -221,10 +219,8 @@ krishaMonitor/
 <a id="-krishamonitor---english"></a>
 # English
 
-<p align="center">
-  <b>Never miss a high-demand rental apartment again.</b><br>
-  KrishaMonitor runs continuous, concurrent background scraping routines to detect newly listed properties matching custom user criteria, delivering real-time Telegram alerts before competitive listings disappear.
-</p>
+<b>Never miss a high-demand rental apartment again.</b><br>
+KrishaMonitor runs continuous, concurrent background scraping routines to detect newly listed properties matching custom user criteria, delivering real-time Telegram alerts before competitive listings disappear.
 
 [Key Features](#key-features-en) •
 [System Architecture](#system-architecture-en) •
