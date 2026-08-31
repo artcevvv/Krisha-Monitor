@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"database"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -11,54 +9,17 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
-	"gorm.io/gorm"
+
+	"database"
+	"handlers"
+	"logger"
 )
 
-var db *gorm.DB
-
-type fileLogger struct {
-	file        *os.File
-	debugMode   bool
-	printErrors bool
-	replacer    *strings.Replacer
-}
-
-func (l *fileLogger) Debug(args ...interface{}) {
-	if l.debugMode {
-		fmt.Fprint(l.file, "[DEBUG] ")
-		fmt.Fprintln(l.file, args...)
-	}
-}
-
-func (l *fileLogger) Debugf(format string, args ...interface{}) {
-	if l.debugMode {
-		fmt.Fprint(l.file, "[DEBUG] ")
-		if l.replacer != nil {
-			format = l.replacer.Replace(format)
-		}
-		fmt.Fprintf(l.file, format+"\n", args...)
-	}
-}
-
-func (l *fileLogger) Error(args ...interface{}) {
-	if l.printErrors {
-		fmt.Fprint(l.file, "[ERROR] ")
-		fmt.Fprintln(l.file, args...)
-	}
-}
-
-func (l *fileLogger) Errorf(format string, args ...interface{}) {
-	if l.printErrors {
-		fmt.Fprint(l.file, "[ERROR] ")
-		if l.replacer != nil {
-			format = l.replacer.Replace(format)
-		}
-		fmt.Fprintf(l.file, format+"\n", args...)
-	}
-}
-
 func main() {
-	godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found")
+	}
+
 	ctx := context.Background()
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 
@@ -68,36 +29,44 @@ func main() {
 	}
 	defer file.Close()
 
-	// Create a custom logger option that writes to the file
-	customLogger := &fileLogger{
-		file:        file,
-		debugMode:   true,
-		printErrors: true,
-		replacer:    strings.NewReplacer("old", "new"),
+	customLogger := &logger.FileLogger{
+		File:        file,
+		DebugMode:   true,
+		PrintErrors: true,
+		Replacer:    strings.NewReplacer("old", "new"),
 	}
 
 	customLoggerOption := telego.WithLogger(customLogger)
 
-	// Initialize the bot with the custom logger
 	bot, err := telego.NewBot(token, customLoggerOption)
-
-	db, _ = database.InitDB()
-
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to initialize bot: %v", err)
 	}
 
-	updates, _ := bot.UpdatesViaLongPolling(ctx, nil)
+	db, err := database.InitDB()
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
 
-	bh, _ := th.NewBotHandler(bot, updates)
+	h := handlers.NewHandler(db)
+
+	updates, err := bot.UpdatesViaLongPolling(ctx, nil)
+	if err != nil {
+		log.Fatalf("Failed to start long polling: %v", err)
+	}
+
+	bh, err := th.NewBotHandler(bot, updates)
+	if err != nil {
+		log.Fatalf("Failed to initialize bot handler: %v", err)
+	}
 
 	defer func() { _ = bh.Stop() }()
 
-	bh.Handle(Start, th.CommandEqual("start"))
-	bh.Handle(Monitor, th.CommandEqual("monitor"))
-	bh.Handle(Cancel, th.CommandEqual("cancel"))
-	bh.HandleCallbackQuery(HandleCallback, th.AnyCallbackQueryWithMessage())
-	bh.Handle(HandleMessage)
+	bh.Handle(h.Start, th.CommandEqual("start"))
+	bh.Handle(h.Monitor, th.CommandEqual("monitor"))
+	bh.Handle(h.Cancel, th.CommandEqual("cancel"))
+	bh.HandleCallbackQuery(h.HandleCallback, th.AnyCallbackQueryWithMessage())
+	bh.Handle(h.HandleMessage)
 
 	_ = bh.Start()
 }
