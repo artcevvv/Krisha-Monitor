@@ -1,5 +1,3 @@
-<div align="center">
-
 # Krisha monitor
 
 **Высокопроизводительный Telegram-бот для мониторинга аренды недвижимости на [Krisha.kz](https://krisha.kz)**  
@@ -18,8 +16,6 @@
 [**Русский**](#-krishamonitor---русский) • [**English**](#-krishamonitor---english)
 
 ---
-
-</div>
 
 <a id="-krishamonitor---русский"></a>
 # Русский
